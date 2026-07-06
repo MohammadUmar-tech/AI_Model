@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import {ChatGroq} from "@langchain/groq"
+import { Annotation, StateGraph } from "@langchain/langgraph";
 dotenv.config();
 
 const app = express();
@@ -39,6 +40,7 @@ app.use(express.json());
 
 // with the llangchain
 
+
 const llm=new ChatGroq({
     model:"openai/gpt-oss-120b",
     temperature:0.7,
@@ -46,19 +48,43 @@ const llm=new ChatGroq({
     maxRetries:2
 })
 
-app.use('/ai',async(req,res)=>{
-    const {input}=req.body
-    const response=await llm.invoke([
+
+
+const State=Annotation.Root({
+    prompt:Annotation,
+    aiMsg:Annotation
+})
+
+const callLlM=async(state)=>{
+    console.log("State is",state)
+       const response=await llm.invoke([
         [
             'system',
             "You are an ai ai assistance and Your name is Sara.If you don't know the answer please do not give the answer"
         ],
         [
-            "human", input
+            "human", state.prompt
         ]
     ])
-    return res.status(200).json({msg:`${response.content}
-        `})
+
+    return {aiMsg:response.content}
+
+}
+
+const graph=new StateGraph(State)
+.addNode('agent',callLlM)
+.addEdge('__start__','agent')
+.addEdge('agent','__end__')
+.compile()
+
+
+
+app.use('/ai',async(req,res)=>{
+    const {input}=req.body
+    const response= await graph.invoke({prompt:input})
+    console.log("Response form the graph",response)
+    return res.status(200).json({"ai :" : response})
+
 })
 
 app.use(express.json());
