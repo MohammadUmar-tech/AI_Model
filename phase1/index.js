@@ -8,8 +8,6 @@
 // import { ToolNode } from "@langchain/langgraph/prebuilt";
 // import { TavilySearch } from "@langchain/tavily";
 
-
-
 // dotenv.config();
 
 // const app = express();
@@ -40,20 +38,13 @@
 
 // // with the llangchain
 
-
-
 // const tool = new TavilySearch({
 //     maxResults: 5,
 //     topic: "general",
 // });
 
-
-
-
 // const tools=[tool];
 // const toolNode=new ToolNode(tools)
-
-
 
 // const llm=new ChatGroq({
 //     model:"openai/gpt-oss-120b",
@@ -66,8 +57,6 @@
 // //     prompt:Annotation,
 // //     aiMsg:Annotation
 // // })
-
-
 
 // const callLlM=async(state)=>{
 //     console.log("State is",state)
@@ -116,7 +105,6 @@
 
 // })
 
-
 // app.listen(process.env.PORT, () => {
 //   console.log(`Server started at port: ${process.env.PORT}`);
 // });
@@ -132,20 +120,23 @@
 // //     ],
 // //   });
 
-
 //Code From Virtual Code
-import express from "express"
-import dotenv from "dotenv"
-import { GoogleGenAI } from "@google/genai"
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
-import { ChatGroq } from "@langchain/groq"
-import { Annotation, MemorySaver, MessagesAnnotation, StateGraph } from "@langchain/langgraph"
+import express from "express";
+import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGroq } from "@langchain/groq";
+import {
+  Annotation,
+  MemorySaver,
+  MessagesAnnotation,
+  StateGraph,
+} from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { TavilySearch } from "@langchain/tavily";
-dotenv.config()
-const app = express()
-
-app.use(express.json())
+dotenv.config();
+const app = express();
+app.use(express.json());
 
 //without Langchain
 
@@ -174,34 +165,30 @@ app.use(express.json())
 
 //with langchain
 
-
 const tool = new TavilySearch({
-    maxResults: 5,
-    topic: "general",
+  maxResults: 5,
+  topic: "general",
 });
 
+const checkPointer = new MemorySaver();
 
-
-
-const tools = [tool]
-const toolNode = new ToolNode(tools)
+const tools = [tool];
+const toolNode = new ToolNode(tools);
 
 const llm = new ChatGroq({
-    model: "llama-3.3-70b-versatile",
-    temperature: 0.7,
-    maxTokens: 100,
-    maxRetries: 2
-}).bindTools(tools)
-
-
+  model: "llama-3.3-70b-versatile",
+  temperature: 0.7,
+  maxTokens: 100,
+  maxRetries: 2,
+}).bindTools(tools);
 
 const callLLM = async (state) => {
-    console.log("state:", state)
+  console.log("state:", state);
 
-    const response = await llm.invoke([
-        {
-            role: "system",
-            content: `You are Jarvis AI assistant
+  const response = await llm.invoke([
+    [
+      "system",
+      `You are Zidan AI assistant
 
 Use conversation memory first.
 
@@ -211,63 +198,56 @@ weather, news, web search, stock prices etc.
 
 Do NOT call tools for simple conversation,
 memory-based questions, greetings,
-or personal context`
-        },
-        ...state.messages
-    ])
+or personal context`,
+    ],
+    ...state.messages,
+  ]);
 
-    return { messages: [response] }
-}
+  return { messages: [response] };
+};
 
 const shouldContinue = async (state) => {
-    const lastMessage = state.messages[state.messages.length - 1]
-    if (lastMessage.tool_calls.length > 0) {
-        return "tools"
-    } else {
-        return "__end__"
-    }
-}
-
+  const lastMessage = state.messages[state.messages.length - 1];
+  if (lastMessage.tool_calls.length > 0) {
+    return "tools";
+  } else {
+    return "__end__";
+  }
+};
 
 const graph = new StateGraph(MessagesAnnotation)
-    .addNode("agent", callLLM)
-    .addNode("tools", toolNode)
-    .addEdge("__start__", "agent")
-    .addEdge("tools", "agent")
-    .addConditionalEdges("agent", shouldContinue)
-    .compile()
-
-
-
+  .addNode("agent", callLLM)
+  .addNode("tools", toolNode)
+  .addEdge("__start__", "agent")
+  .addEdge("tools", "agent")
+  .addConditionalEdges("agent", shouldContinue)
+  .compile({ checkpointer: checkPointer });
 
 app.post("/ai", async (req, res) => {
-    const { input } = req.body
+  const { input } = req.body;
 
-    const response = await graph.invoke(
+  const response = await graph.invoke(
+    {
+      messages: [
         {
-            messages: [
-                {
-                    role: "user",
-                    content: input
-                }
-            ]
+          role: "user",
+          content: input,
         },
-        { configurable: { thread_id: "user123" } }
+      ],
+    },
+    { configurable: { thread_id: "user123" } },
+  );
+  console.log(response.messages);
 
-    )
-    console.log(response.messages)
-
-    return res.status(200).json({ "ai:": response.messages[response.messages.length - 1].content })
-})
-
-
-
+  return res
+    .status(200)
+    .json({ "ai:": response.messages[response.messages.length - 1].content });
+});
 
 app.get("/", (req, res) => {
-    return res.json({ message: "hello from level4" })
-})
-
+  return res.json({ message: "hello from level4" });
+});
 
 app.listen(process.env.PORT, () => {
-    console.log(`Server started at PORT :${process.env.PORT}`)
-})
+  console.log(`server started at port ${process.env.PORT}`);
+});
